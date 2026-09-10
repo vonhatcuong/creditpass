@@ -263,10 +263,13 @@ function renderActivity(items) {
   feed.innerHTML = items.map((i) => {
     const explorer = i.chain === 'sep' ? CONFIG.sepolia.explorer : CONFIG.creditcoin.explorer;
     const time = i.ts ? new Date(i.ts).toLocaleString() : `block #${i.block}`;
+    const txLink = explorer
+      ? `<a href="${explorer}/tx/${i.tx}" target="_blank" rel="noopener" class="mono">${i.tx.slice(0, 12)}…</a>`
+      : `<span class="mono">${i.tx.slice(0, 12)}…</span>`;
     return `
       <div class="feed-item">
         <div class="chain ${i.chain === 'cc' ? 'cc' : 'sep'}">${i.chain === 'cc' ? 'Creditcoin' : 'Sepolia'}</div>
-        <div class="desc">${describe(i)}<div class="meta">${time} · <a href="${explorer}/tx/${i.tx}" target="_blank" rel="noopener" class="mono">${i.tx.slice(0, 12)}…</a></div></div>
+        <div class="desc">${describe(i)}<div class="meta">${time} · ${txLink}</div></div>
         <div class="amt">${i.amount != null ? usd(i.amount) : ''}</div>
       </div>`;
   }).join('');
@@ -319,6 +322,25 @@ async function showLoan(id) {
 }
 
 const escapeHtml = (s) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+
+/**
+ * Optional local-devnet overrides written by `npm run local:e2e` (LOCAL_KEEP_ALIVE=1).
+ * Merges web/config.local.json over CONFIG when it exists.
+ */
+async function applyLocalOverrides() {
+  try {
+    const res = await fetch('./config.local.json', { cache: 'no-store' });
+    if (!res.ok) return false;
+    const o = await res.json();
+    if (o.addresses) Object.assign(CONFIG.addresses, o.addresses);
+    if (o.creditcoin) Object.assign(CONFIG.creditcoin, o.creditcoin);
+    if (o.sepolia) Object.assign(CONFIG.sepolia, o.sepolia);
+    if (o.borrower) CONFIG.borrower = o.borrower;
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Policy simulator
@@ -396,6 +418,7 @@ async function refresh() {
 }
 
 async function boot() {
+  await applyLocalOverrides();
   $('netName').textContent = CONFIG.creditcoin.name;
   $('ccLink').href = CONFIG.creditcoin.explorer;
   $('sepLink').href = CONFIG.sepolia.explorer;
