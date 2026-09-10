@@ -55,6 +55,22 @@ contract CreditPassTest is Test {
         assertEq(uint8(tier), uint8(CreditTier.Unscored));
     }
 
+    function testPolicyScoringIsGradual() public {
+        CreditPolicy policy = new CreditPolicy();
+
+        // $100 collateral = 50 points (not saturated).
+        (uint16 s1,,) = policy.assess(_profile(100, 0, 0, 0, 0));
+        assertEq(s1, 50);
+
+        // 1 on-time repayment = 80 points.
+        (uint16 s2,,) = policy.assess(_profile(0, 0, 1, 1, 0));
+        assertEq(s2, 80);
+
+        // $50 repaid = 100 points.
+        (uint16 s3,,) = policy.assess(_profile(0, 50, 0, 0, 0));
+        assertEq(s3, 100);
+    }
+
     function testPolicyPrimeUnlocksUndercollateralizedCredit() public {
         CreditPolicy policy = new CreditPolicy();
         // $5,000 collateral, $1,000 repaid, 4 on-time repayments, $1,500 income

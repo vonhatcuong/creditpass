@@ -36,15 +36,15 @@ contract CreditPolicy is Ownable {
         if (repaymentPoints > MAX_REPAYMENT_POINTS) repaymentPoints = MAX_REPAYMENT_POINTS;
         s += repaymentPoints;
 
-        uint256 repaidPoints = (p.totalRepaidUsd / 50 * UNIT) * POINTS_PER_50_USD_REPAID / 100;
+        uint256 repaidPoints = (p.totalRepaidUsd * POINTS_PER_50_USD_REPAID) / (50 * UNIT);
         if (repaidPoints > MAX_REPAID_POINTS) repaidPoints = MAX_REPAID_POINTS;
         s += repaidPoints;
 
-        uint256 collateralPoints = (p.collateralUsd / 100 * UNIT) * POINTS_PER_100_USD_COLLATERAL / 100;
+        uint256 collateralPoints = (p.collateralUsd * POINTS_PER_100_USD_COLLATERAL) / (100 * UNIT);
         if (collateralPoints > MAX_COLLATERAL_POINTS) collateralPoints = MAX_COLLATERAL_POINTS;
         s += collateralPoints;
 
-        uint256 incomePoints = (p.incomeUsd / 100 * UNIT) * POINTS_PER_100_USD_INCOME / 100;
+        uint256 incomePoints = (p.incomeUsd * POINTS_PER_100_USD_INCOME) / (100 * UNIT);
         if (incomePoints > MAX_INCOME_POINTS) incomePoints = MAX_INCOME_POINTS;
         s += incomePoints;
 

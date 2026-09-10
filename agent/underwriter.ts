@@ -133,7 +133,7 @@ async function buildRationale(ctx: {
 }
 
 function writeRationale(hash: string, rationale: string) {
-  const dir = path.join(ROOT_DIR, 'agent', 'rationales');
+  const dir = path.join(ROOT_DIR, 'web', 'rationales');
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, `${hash}.txt`), rationale);
 }

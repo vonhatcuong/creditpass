@@ -88,16 +88,27 @@ npm run worker:start
 npm run inspect
 # 6. run the AI underwriter (disburses a loan within the verified limit)
 npm run agent:underwrite
-# 7. dashboard
-npx serve web   # then set addresses in web/config.js
+# 7. dashboard (fill web/config.js first with the deployed addresses)
+npm run serve
 ```
+
+## Dashboard
+
+`web/` is a dependency-light static app (ethers from a CDN, no build step):
+
+- **Dashboard** — verified passport, transparent score breakdown, pool state, live links.
+- **Cross-chain Flow** — chronological feed merging Sepolia events and their proven consequences on Creditcoin.
+- **Policy Simulator** — drag collateral / repayments / income to see the exact on-chain score & limit (works without any wallet or deployment).
+- **Loans** — every loan with the AI underwriter's on-chain decision hash and rationale.
+
+Set `web/config.js` (the deploy scripts also write `deployments.json`).
 
 ## Tests
 
 ```
 forge test
-# 9 tests: policy scoring/limits, source-chain recording, recorder gating,
-#          pool limit enforcement, underwriter role, ASC authorization
+# 10 tests: policy scoring/limits, source-chain recording, recorder gating,
+#            pool limit enforcement, underwriter role, ASC authorization
 ```
 
 ## Track & roadmap
