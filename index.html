@@ -4,199 +4,199 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>CreditPass — Verified cross-chain credit on Creditcoin</title>
-  <style>
-    :root {
-      --bg: #0b0f14;
-      --panel: #121821;
-      --panel-2: #161e29;
-      --line: #223042;
-      --text: #e6edf3;
-      --muted: #8b9bb0;
-      --accent: #4ade80;
-      --accent-2: #38bdf8;
-      --warn: #fbbf24;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0; background: var(--bg); color: var(--text);
-      font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-    }
-    header {
-      padding: 28px 32px; border-bottom: 1px solid var(--line);
-      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;
-    }
-    .brand { display: flex; align-items: center; gap: 12px; }
-    .logo { width: 34px; height: 34px; border-radius: 9px; background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
-    h1 { font-size: 20px; margin: 0; }
-    .sub { color: var(--muted); font-size: 13px; }
-    main { max-width: 1080px; margin: 0 auto; padding: 28px 24px 80px; }
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-    @media (max-width: 820px) { .grid { grid-template-columns: 1fr; } }
-    .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 20px; }
-    .panel h2 { margin: 0 0 14px; font-size: 14px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
-    .row { display: flex; justify-content: space-between; padding: 9px 0; border-bottom: 1px dashed var(--line); }
-    .row:last-child { border-bottom: none; }
-    .k { color: var(--muted); }
-    .v { font-variant-numeric: tabular-nums; }
-    .big { font-size: 26px; font-weight: 650; }
-    .accent { color: var(--accent); }
-    .accent-2 { color: var(--accent-2); }
-    .warn { color: var(--warn); }
-    .tier { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; border: 1px solid var(--line); }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { text-align: left; padding: 9px 6px; border-bottom: 1px solid var(--line); font-size: 13px; }
-    th { color: var(--muted); font-weight: 500; }
-    code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
-    a { color: var(--accent-2); text-decoration: none; }
-    .flow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 8px; }
-    @media (max-width: 820px) { .flow { grid-template-columns: 1fr 1fr; } }
-    .step { background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
-    .step b { display: block; margin-bottom: 4px; font-size: 13px; }
-    .step span { color: var(--muted); font-size: 12px; }
-    .pill { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 3px 9px; }
-    footer { max-width: 1080px; margin: 0 auto; padding: 0 24px 60px; color: var(--muted); font-size: 12px; }
-    .banner { background: rgba(56,189,248,.08); border: 1px solid rgba(56,189,248,.3); border-radius: 12px; padding: 14px 16px; margin-bottom: 22px; }
-  </style>
+  <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
   <header>
-    <div class="brand">
-      <div class="logo"></div>
-      <div>
-        <h1>CreditPass</h1>
-        <div class="sub">Verified cross-chain credit passport · powered by the Attestcoin Protocol</div>
+    <div class="header-inner">
+      <div class="brand">
+        <div class="logo"></div>
+        <div>
+          <h1>CreditPass</h1>
+          <div class="sub">Verified cross-chain credit passport · powered by the Attestcoin Protocol</div>
+        </div>
       </div>
+      <span class="pill" id="netPill"><span class="dot" id="netDot"></span><span id="netName">Creditcoin CC3 Testnet</span></span>
+      <span class="pill" id="refreshPill"><span class="spin" id="refreshSpin"></span><span id="refreshText">loading…</span></span>
     </div>
-    <div class="pill" id="net">Creditcoin CC3 Testnet</div>
   </header>
 
+  <nav class="tabs">
+    <button class="tab active" data-view="dashboard">Dashboard</button>
+    <button class="tab" data-view="flow">Cross-chain Flow</button>
+    <button class="tab" data-view="policy">Policy Simulator</button>
+    <button class="tab" data-view="loans">Loans</button>
+  </nav>
+
   <main>
-    <div class="banner">
-      Every value below was <b>cryptographically proven</b> on Creditcoin from events on Ethereum Sepolia —
-      no oracle operator, no bridge, no trusted middleman. The proof is verified on-chain by the block prover precompile
-      <code>0x…FD2</code> before the passport is updated.
-    </div>
+    <div id="configNotice" class="notice" style="display:none"></div>
 
-    <div class="grid">
-      <section class="panel">
-        <h2>Verified Credit Passport</h2>
-        <div class="row"><span class="k">Borrower</span><span class="v mono" id="borrower">—</span></div>
-        <div class="row"><span class="k">Verified collateral</span><span class="v" id="collateral">—</span></div>
-        <div class="row"><span class="k">Total repaid</span><span class="v" id="repaid">—</span></div>
-        <div class="row"><span class="k">Repayments (on-time)</span><span class="v" id="repayments">—</span></div>
-        <div class="row"><span class="k">Verified income</span><span class="v" id="income">—</span></div>
-        <div class="row"><span class="k">Credit score</span><span class="v big accent" id="score">—</span></div>
-        <div class="row"><span class="k">Tier</span><span class="v" id="tier">—</span></div>
-        <div class="row"><span class="k">Credit limit</span><span class="v big accent-2" id="limit">—</span></div>
-      </section>
+    <!-- ================= DASHBOARD ================= -->
+    <section class="view active" id="view-dashboard">
+      <div class="hero">
+        <div>
+          <h2 class="title">Credit from history you can <span class="accent">prove</span>, not from trust.</h2>
+          <p class="tagline">
+            A borrower's real activity on another chain is proven on Creditcoin by the Attestcoin Protocol.
+            The verified passport drives an AI underwriter and an under-collateralized loan — no oracle operator.
+          </p>
+          <div class="stat-row">
+            <div class="stat"><div class="n accent-2" id="statScore">—</div><div class="l">Credit score</div></div>
+            <div class="stat"><div class="n accent" id="statLimit">—</div><div class="l">Verified limit</div></div>
+            <div class="stat"><div class="n" id="statCollateral">—</div><div class="l">Proven collateral</div></div>
+            <div class="stat"><div class="n" id="statLoans">—</div><div class="l">Loans opened</div></div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="ring-wrap">
+            <div class="ring">
+              <svg width="132" height="132">
+                <circle cx="66" cy="66" r="56" stroke="#22314a" stroke-width="10" fill="none"></circle>
+                <circle id="ringArc" cx="66" cy="66" r="56" stroke="url(#g)" stroke-width="10" fill="none"
+                        stroke-linecap="round" stroke-dasharray="351.8" stroke-dashoffset="351.8"></circle>
+                <defs>
+                  <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stop-color="#38bdf8" /><stop offset="100%" stop-color="#4ade80" />
+                  </linearGradient>
+                </defs>
+              </svg>
+              <div class="val"><b id="ringScore">—</b><span id="ringTier">—</span></div>
+            </div>
+            <div>
+              <div class="help">Borrower</div>
+              <div class="mono" id="borrowerAddr">—</div>
+              <div class="help" style="margin-top:12px">Passport last updated at block</div>
+              <div class="mono" id="profileBlock">—</div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-      <section class="panel">
+      <div class="grid cols-2" style="margin-top:18px">
+        <section class="panel">
+          <h2>Verified Credit Passport</h2>
+          <div class="hint">Every field below originates from an event proven on Creditcoin.</div>
+          <div class="row"><span class="k">Proven collateral</span><span class="v" id="pCollateral">—</span></div>
+          <div class="row"><span class="k">Total repaid</span><span class="v" id="pRepaid">—</span></div>
+          <div class="row"><span class="k">Repayments (on-time)</span><span class="v" id="pRepayments">—</span></div>
+          <div class="row"><span class="k">Proven income</span><span class="v" id="pIncome">—</span></div>
+          <div class="row"><span class="k">Tier</span><span class="v" id="pTier">—</span></div>
+          <div class="row"><span class="k">Verified credit limit</span><span class="v big accent" id="pLimit">—</span></div>
+        </section>
+
+        <section class="panel">
+          <h2>Score breakdown</h2>
+          <div class="hint">Computed exactly like the on-chain CreditPolicy (transparent, no model black box).</div>
+          <div id="breakdown"></div>
+          <div class="row" style="margin-top:8px"><span class="k">Total</span><span class="v big" id="bTotal">—</span></div>
+        </section>
+      </div>
+
+      <section class="panel" style="margin-top:18px">
         <h2>Lending Pool</h2>
-        <div class="row"><span class="k">Total liquidity</span><span class="v" id="liquidity">—</span></div>
-        <div class="row"><span class="k">Outstanding</span><span class="v" id="outstanding">—</span></div>
-        <div class="row"><span class="k">Loans opened</span><span class="v" id="loanCount">—</span></div>
-        <div class="row"><span class="k">Underwriter (AI agent)</span><span class="v mono" id="underwriter">—</span></div>
-        <div class="row"><span class="k">Pool</span><span class="v mono" id="poolAddr">—</span></div>
-        <div class="row"><span class="k">Passport (ASC)</span><span class="v mono" id="ascAddr">—</span></div>
+        <div class="grid cols-3">
+          <div class="row"><span class="k">Total liquidity</span><span class="v" id="poolLiquidity">—</span></div>
+          <div class="row"><span class="k">Outstanding</span><span class="v" id="poolOutstanding">—</span></div>
+          <div class="row"><span class="k">Utilization</span><span class="v" id="poolUtil">—</span></div>
+        </div>
+        <div class="row"><span class="k">AI underwriter</span><span class="v mono" id="poolUnderwriter">—</span></div>
+        <div class="row"><span class="k">Passport (ASC)</span><span class="v mono addr-chip"><span id="ascAddr">—</span><span class="copy" data-copy="asc">copy</span></span></div>
+        <div class="row"><span class="k">Pool</span><span class="v mono addr-chip"><span id="poolAddr">—</span><span class="copy" data-copy="pool">copy</span></span></div>
       </section>
-    </div>
-
-    <section class="panel" style="margin-top:20px">
-      <h2>Loans</h2>
-      <table>
-        <thead><tr><th>#</th><th>Borrower</th><th>Principal</th><th>Owed</th><th>Status</th><th>AI decision</th></tr></thead>
-        <tbody id="loans"><tr><td colspan="6" class="k">No loans yet.</td></tr></tbody>
-      </table>
     </section>
 
-    <section class="panel" style="margin-top:20px">
-      <h2>How it is verified</h2>
+    <!-- ================= FLOW ================= -->
+    <section class="view" id="view-flow">
       <div class="flow">
-        <div class="step"><b>1 · Emit</b><span>Borrower locks collateral and repays on Ethereum Sepolia.</span></div>
-        <div class="step"><b>2 · Attest</b><span>Attestors observe Sepolia and reach consensus on its history.</span></div>
-        <div class="step"><b>3 · Prove</b><span>The worker submits a Merkle + continuity proof to Creditcoin.</span></div>
-        <div class="step"><b>4 · Underwrite</b><span>ASC verifies, passport updates, the AI agent lends.</span></div>
+        <div class="step"><div class="idx">01 · SOURCE</div><b>Emit</b><span>Borrower locks collateral & repays on Sepolia.</span><div class="count" id="cCollateral">0 events</div></div>
+        <div class="step"><div class="idx">02 · ATTEST</div><b>Attestors agree</b><span>Independent attestors sign Sepolia's history.</span><div class="count" id="cRepay">0 events</div></div>
+        <div class="step"><div class="idx">03 · PROVE</div><b>Submit proof</b><span>Worker sends Merkle + continuity proof.</span><div class="count" id="cIncome">0 events</div></div>
+        <div class="step"><div class="idx">04 · VERIFY</div><b>Precompile 0x…FD2</b><span>Proof verified synchronously on Creditcoin.</span><div class="count" id="cPassport">0 updates</div></div>
+        <div class="step"><div class="idx">05 · ACT</div><b>AI underwrites</b><span>Agent lends within the verified limit.</span><div class="count" id="cLoans">0 loans</div></div>
       </div>
+
+      <section class="panel">
+        <h2>Live cross-chain activity</h2>
+        <div class="hint">Sepolia events and their proven consequences on Creditcoin, newest first.</div>
+        <div class="feed" id="feed"><div class="empty">No activity found in the configured lookback window.</div></div>
+      </section>
+    </section>
+
+    <!-- ================= POLICY ================= -->
+    <section class="view" id="view-policy">
+      <div class="sim-grid">
+        <section class="panel">
+          <h2>Policy simulator</h2>
+          <div class="hint">Move the inputs to see how verified history becomes a credit limit.</div>
+          <div class="slider">
+            <label>Proven collateral <span class="val" id="lCollateral">$5,000</span></label>
+            <input type="range" id="sCollateral" min="0" max="20000" step="100" value="5000" />
+          </div>
+          <div class="slider">
+            <label>Total repaid <span class="val" id="lRepaid">$1,000</span></label>
+            <input type="range" id="sRepaid" min="0" max="10000" step="50" value="1000" />
+          </div>
+          <div class="slider">
+            <label>Repayments made <span class="val" id="lCount">5</span></label>
+            <input type="range" id="sCount" min="0" max="10" step="1" value="5" />
+          </div>
+          <div class="slider">
+            <label>On-time repayments <span class="val" id="lOnTime">5</span></label>
+            <input type="range" id="sOnTime" min="0" max="10" step="1" value="5" />
+          </div>
+          <div class="slider">
+            <label>Proven income <span class="val" id="lIncome">$1,500</span></label>
+            <input type="range" id="sIncome" min="0" max="10000" step="100" value="1500" />
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2>Result</h2>
+          <div class="row"><span class="k">Score</span><span class="v big accent-2" id="simScore">—</span></div>
+          <div class="row"><span class="k">Tier</span><span class="v" id="simTier">—</span></div>
+          <div class="row"><span class="k">Eligible</span><span class="v" id="simEligible">—</span></div>
+          <div class="row"><span class="k">Credit limit</span><span class="v big accent" id="simLimit">—</span></div>
+          <div class="row"><span class="k">Undercollateralized?</span><span class="v" id="simUnder">—</span></div>
+          <div id="simBars" style="margin-top:14px"></div>
+          <p class="help" style="margin-top:14px">
+            Score = on-time (max 400) + repaid (max 200) + collateral (max 250) + income (max 150).
+            Limit = 50% collateral + $20 per point above 300, capped by 2× income + collateral.
+          </p>
+        </section>
+      </div>
+    </section>
+
+    <!-- ================= LOANS ================= -->
+    <section class="view" id="view-loans">
+      <section class="panel">
+        <h2>Loans</h2>
+        <div class="hint">Click a row to see the AI underwriter's recorded decision and rationale.</div>
+        <table>
+          <thead>
+            <tr><th>#</th><th>Borrower</th><th>Principal</th><th>Owed</th><th>Verified score</th><th>Status</th><th>Rationale</th></tr>
+          </thead>
+          <tbody id="loansBody"><tr><td colspan="7" class="empty">No loans yet.</td></tr></tbody>
+        </table>
+      </section>
     </section>
   </main>
 
   <footer>
-    <a id="ccLink" target="_blank" rel="noopener">Creditcoin explorer</a> ·
+    <span>CreditPass · BUIDL CTC 2026 Fall · Track AI</span>
+    <a id="ccLink" target="_blank" rel="noopener">Creditcoin explorer</a>
     <a id="sepLink" target="_blank" rel="noopener">Sepolia explorer</a>
+    <a href="https://github.com/vonhatcuong/creditpass" target="_blank" rel="noopener">GitHub</a>
   </footer>
 
-  <script type="module">
-    import { ethers } from 'https://esm.sh/ethers@6.17.0';
-    import { CONFIG } from './config.js';
+  <div class="modal-backdrop" id="modal">
+    <div class="modal">
+      <header><div style="display:flex;justify-content:space-between;align-items:center">
+        <b id="modalTitle">Loan</b><span class="close-x" id="modalClose">✕</span>
+      </div></header>
+      <div class="body" id="modalBody"></div>
+    </div>
+  </div>
 
-    const CC3 = {
-      chainInfo: '0x0000000000000000000000000000000000000fd3',
-      blockProver: '0x0000000000000000000000000000000000000FD2',
-    };
-
-    const POLICY_ABI = ['function assess((uint256,uint256,uint256,uint256,uint256,uint64,bool)) view returns (uint16,uint256,uint8)'];
-    const ASC_ABI = ['function profileOf(address) view returns (uint256 collateralUsd,uint256 totalRepaidUsd,uint256 repaymentCount,uint256 onTimeCount,uint256 incomeUsd,uint64 lastBlockHeight,bool exists)'];
-    const POOL_ABI = [
-      'function totalLiquidity() view returns (uint256)',
-      'function totalOutstanding() view returns (uint256)',
-      'function nextLoanId() view returns (uint256)',
-      'function underwriter() view returns (address)',
-      'function loans(uint256) view returns (address borrower,uint256 principal,uint256 owed,uint64 openedAt,bool active,bytes32 decisionHash,string rationaleURI)',
-    ];
-
-    const usd = (n) => '$' + (Number(n) / 1e6).toLocaleString('en-US', { maximumFractionDigits: 2 });
-    const tierName = ['Unscored', 'Starter', 'Established', 'Prime'];
-    const short = (a) => a.slice(0, 6) + '…' + a.slice(-4);
-    const el = (id) => document.getElementById(id);
-
-    async function main() {
-      el('ccLink').href = CONFIG.creditcoinExplorer;
-      el('sepLink').href = CONFIG.sepoliaExplorer;
-
-      const provider = new ethers.JsonRpcProvider(CONFIG.creditcoinRpc);
-      const asc = new ethers.Contract(CONFIG.ascAddress, ASC_ABI, provider);
-      const policy = new ethers.Contract(CONFIG.policyAddress, POLICY_ABI, provider);
-      const pool = new ethers.Contract(CONFIG.poolAddress, POOL_ABI, provider);
-
-      const borrower = CONFIG.borrower;
-      if (!borrower) { el('borrower').textContent = 'set CONFIG.borrower in web/config.js'; return; }
-
-      el('borrower').textContent = short(borrower);
-      el('ascAddr').textContent = short(CONFIG.ascAddress);
-      el('poolAddr').textContent = short(CONFIG.poolAddress);
-      el('underwriter').textContent = short(await pool.underwriter());
-
-      const p = await asc.profileOf(borrower);
-      const [score, limit, tier] = await policy.assess([p[0], p[1], p[2], p[3], p[4], p[5], p[6]]);
-
-      el('collateral').textContent = usd(p[0]);
-      el('repaid').textContent = usd(p[1]);
-      el('repayments').textContent = `${p[2]} (${p[3]} on-time)`;
-      el('income').textContent = usd(p[4]);
-      el('score').textContent = `${score} / 1000`;
-      el('tier').innerHTML = `<span class="tier">${tierName[Number(tier)]}</span>`;
-      el('limit').textContent = usd(limit);
-
-      el('liquidity').textContent = usd(await pool.totalLiquidity());
-      el('outstanding').textContent = usd(await pool.totalOutstanding());
-      const next = Number(await pool.nextLoanId());
-      el('loanCount').textContent = String(next - 1);
-
-      const tbody = el('loans');
-      if (next > 1) {
-        tbody.innerHTML = '';
-        for (let i = 1; i < next; i++) {
-          const l = await pool.loans(i);
-          tbody.insertAdjacentHTML('beforeend', `<tr>
-            <td>${i}</td><td class="mono">${short(l.borrower)}</td>
-            <td>${usd(l.principal)}</td><td>${usd(l.owed)}</td>
-            <td class="${l.active ? 'warn' : 'accent'}">${l.active ? 'Active' : 'Repaid'}</td>
-            <td class="mono">${l.rationaleURI}</td></tr>`);
-        }
-      }
-    }
-
-    main().catch((e) => { console.error(e); });
-  </script>
+  <script type="module" src="./app.js"></script>
 </body>
 </html>
