@@ -1,0 +1,10 @@
+node_modules/
+out/
+cache/
+.env
+*.log
+.DS_Store
+deployments.json
+agent/rationales/
+web/node_modules/
+web/dist/
