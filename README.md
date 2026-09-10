@@ -107,9 +107,33 @@ Set `web/config.js` (the deploy scripts also write `deployments.json`).
 
 ```
 forge test
-# 10 tests: policy scoring/limits, source-chain recording, recorder gating,
-#            pool limit enforcement, underwriter role, ASC authorization
+# 13 tests: policy scoring/limits, source-chain recording, recorder gating,
+#            pool limit enforcement, underwriter role, ASC authorization + local mode
 ```
+
+## Local end-to-end (no testnet, no keys)
+
+Two Anvil devnets are spun up automatically and the whole flow runs:
+
+```bash
+npm run local:e2e
+```
+
+This deploys the source stack + creditcoin stack, generates borrower history, runs the
+event→passport relayer, underwrites and disburses a loan — and prints the result.
+
+To keep the devnets alive and view the dashboard against them:
+
+```bash
+LOCAL_KEEP_ALIVE=1 npm run local:e2e    # writes web/config.local.json, keeps anvil running
+npm run serve                            # open http://localhost:3000
+```
+
+> The real cryptographic proof path needs the block-prover precompile (`0xFD2`), which only
+> exists on Creditcoin. On localhost the relayer uses the ASC's owner-gated **local mode**
+> (`applyLocalEvent`, off by default, never enabled on a real deployment) to exercise the exact
+> same state transitions, underwriting and lending code. On testnet the worker submits the real
+> Merkle + continuity proof through `execute`.
 
 ## Track & roadmap
 

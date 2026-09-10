@@ -6,5 +6,6 @@ cache/
 .DS_Store
 deployments.json
 web/rationales/
+web/config.local.json
 web/node_modules/
 web/dist/

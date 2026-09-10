@@ -198,4 +198,34 @@ contract CreditPassTest is Test {
         asc.setAuthorizedSource(address(0xBEEF), true);
         assertTrue(asc.authorizedSources(address(0xBEEF)));
     }
+
+    function testAscLocalModeDisabledByDefault() public {
+        CreditPassportASC asc = new CreditPassportASC();
+        vm.expectRevert(CreditPassportASC.LocalModeDisabled.selector);
+        asc.applyLocalEvent(0, alice, 5000e6, false);
+    }
+
+    function testAscLocalModeRecordsSharedState() public {
+        CreditPassportASC asc = new CreditPassportASC();
+        asc.setLocalMode(true);
+
+        asc.applyLocalEvent(0, alice, 5000e6, false); // collateral
+        asc.applyLocalEvent(1, alice, 200e6, true); // repayment (on-time)
+        asc.applyLocalEvent(2, alice, 1500e6, false); // income
+
+        CreditProfile memory p = asc.profileOf(alice);
+        assertTrue(p.exists);
+        assertEq(p.collateralUsd, 5000e6);
+        assertEq(p.totalRepaidUsd, 200e6);
+        assertEq(p.repaymentCount, 1);
+        assertEq(p.onTimeCount, 1);
+        assertEq(p.incomeUsd, 1500e6);
+    }
+
+    function testAscLocalModeOwnerOnly() public {
+        CreditPassportASC asc = new CreditPassportASC();
+        vm.prank(alice);
+        vm.expectRevert();
+        asc.setLocalMode(true);
+    }
 }

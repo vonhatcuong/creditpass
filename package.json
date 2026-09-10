@@ -15,6 +15,7 @@
     "worker:start": "tsx worker/worker.ts",
     "agent:underwrite": "tsx agent/underwriter.ts",
     "inspect": "tsx scripts/inspect.ts",
+    "local:e2e": "tsx scripts/local_e2e.ts",
     "serve": "npx --yes serve web"
   },
   "dependencies": {

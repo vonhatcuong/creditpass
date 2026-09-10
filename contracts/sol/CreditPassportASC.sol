@@ -13,6 +13,11 @@ import {CreditProfile, ICreditPassport} from "./CreditPassTypes.sol";
 ///         `ASCBase.execute`, which also enforces one-time processing (replay protection). This
 ///         contract then validates the proved transaction's success status and emitter and updates
 ///         the borrower's profile. No oracle operator is trusted anywhere in the path.
+///
+///         `applyLocalEvent` + `localMode` exist ONLY to run an end-to-end demo on a local devnet,
+///         which has no block-prover precompile. Local mode is off by default, owner-gated, and is
+///         never enabled on a real deployment. State transitions are shared with the proof path so
+///         both routes exercise exactly the same logic.
 contract CreditPassportASC is Ownable, ASCBase, ICreditPassport {
     enum Action {
         CollateralDeposited, // 0
@@ -31,13 +36,18 @@ contract CreditPassportASC is Ownable, ASCBase, ICreditPassport {
     ///         emitter is rejected, so a borrower cannot deploy a look-alike contract and prove it.
     mapping(address => bool) public authorizedSources;
 
+    /// @notice When true (local devnet only), `applyLocalEvent` can write the passport directly.
+    bool public localMode;
+
     mapping(address => CreditProfile) private _profiles;
 
     event SourceAuthorizationUpdated(address indexed source, bool allowed);
+    event LocalModeUpdated(bool enabled);
     event PassportUpdated(address indexed user, Action indexed action, uint256 amount, uint64 blockHeight);
 
     error UnauthorizedSource(address emitter);
     error MalformedEvent();
+    error LocalModeDisabled();
 
     constructor() Ownable(msg.sender) {}
 
@@ -47,9 +57,31 @@ contract CreditPassportASC is Ownable, ASCBase, ICreditPassport {
         emit SourceAuthorizationUpdated(source, allowed);
     }
 
+    /// @notice Enable/disable the local-devnet simulation path. Off by default.
+    function setLocalMode(bool enabled) external onlyOwner {
+        localMode = enabled;
+        emit LocalModeUpdated(enabled);
+    }
+
     /// @inheritdoc ICreditPassport
     function profileOf(address user) external view returns (CreditProfile memory) {
         return _profiles[user];
+    }
+
+    /// @notice Local-devnet only: record an event as if it had been proven. Reverts unless
+    ///         `localMode` is enabled. Never used on a real deployment.
+    function applyLocalEvent(uint8 action, address user, uint256 amount, bool onTime) external {
+        if (!localMode) revert LocalModeDisabled();
+        require(user != address(0), "user=0");
+        if (action == uint8(Action.CollateralDeposited)) {
+            _recordCollateral(user, amount);
+        } else if (action == uint8(Action.RepaymentRecorded)) {
+            _recordRepayment(user, amount, onTime);
+        } else if (action == uint8(Action.IncomeReceived)) {
+            _recordIncome(user, amount);
+        } else {
+            revert("invalid action");
+        }
     }
 
     /// @dev Called by `ASCBase.execute` after the proof has been verified and deduplicated.
@@ -87,12 +119,7 @@ contract CreditPassportASC is Ownable, ASCBase, ICreditPassport {
         address user = _topicToAddress(log.topics[1]);
         (uint256 amount,) = abi.decode(log.data, (uint256, uint256));
 
-        CreditProfile storage p = _profiles[user];
-        p.exists = true;
-        p.collateralUsd += amount;
-        p.lastBlockHeight = uint64(block.number);
-
-        emit PassportUpdated(user, Action.CollateralDeposited, amount, uint64(block.number));
+        _recordCollateral(user, amount);
     }
 
     function _applyRepayment(EvmV1Decoder.ReceiptFields memory receipt) private {
@@ -106,16 +133,7 @@ contract CreditPassportASC is Ownable, ASCBase, ICreditPassport {
         address user = _topicToAddress(log.topics[1]);
         (uint256 amount, bool onTime) = abi.decode(log.data, (uint256, bool));
 
-        CreditProfile storage p = _profiles[user];
-        p.exists = true;
-        p.totalRepaidUsd += amount;
-        p.repaymentCount += 1;
-        if (onTime) {
-            p.onTimeCount += 1;
-        }
-        p.lastBlockHeight = uint64(block.number);
-
-        emit PassportUpdated(user, Action.RepaymentRecorded, amount, uint64(block.number));
+        _recordRepayment(user, amount, onTime);
     }
 
     function _applyIncome(EvmV1Decoder.ReceiptFields memory receipt) private {
@@ -129,11 +147,36 @@ contract CreditPassportASC is Ownable, ASCBase, ICreditPassport {
         address user = _topicToAddress(log.topics[1]);
         (uint256 amount,) = abi.decode(log.data, (uint256, address));
 
+        _recordIncome(user, amount);
+    }
+
+    // --- shared state transitions (used by both the proof path and local mode) ----------------
+
+    function _recordCollateral(address user, uint256 amount) private {
+        CreditProfile storage p = _profiles[user];
+        p.exists = true;
+        p.collateralUsd += amount;
+        p.lastBlockHeight = uint64(block.number);
+        emit PassportUpdated(user, Action.CollateralDeposited, amount, uint64(block.number));
+    }
+
+    function _recordRepayment(address user, uint256 amount, bool onTime) private {
+        CreditProfile storage p = _profiles[user];
+        p.exists = true;
+        p.totalRepaidUsd += amount;
+        p.repaymentCount += 1;
+        if (onTime) {
+            p.onTimeCount += 1;
+        }
+        p.lastBlockHeight = uint64(block.number);
+        emit PassportUpdated(user, Action.RepaymentRecorded, amount, uint64(block.number));
+    }
+
+    function _recordIncome(address user, uint256 amount) private {
         CreditProfile storage p = _profiles[user];
         p.exists = true;
         p.incomeUsd += amount;
         p.lastBlockHeight = uint64(block.number);
-
         emit PassportUpdated(user, Action.IncomeReceived, amount, uint64(block.number));
     }
 
