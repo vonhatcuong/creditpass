@@ -92,16 +92,22 @@ npm run agent:underwrite
 npm run serve
 ```
 
-## Dashboard
+## Dashboard (standard web3 dApp)
 
-`web/` is a dependency-light static app (ethers from a CDN, no build step):
+`web/` is a dependency-light static dApp (ethers from a CDN, no build step):
 
+- **Wallet** — connect via an injected provider (MetaMask), auto switch/add the Creditcoin and Sepolia
+  networks, account + network state, tx toasts with pending/confirmed/error lifecycle.
 - **Dashboard** — verified passport, transparent score breakdown, pool state, live links.
+- **Actions** — role-aware on-chain interactions: borrowers request a loan within their verified limit
+  and build history on Sepolia; the AI underwriter opens loans for verified borrowers. Every action
+  sends a real transaction (approve + call) and refreshes the view.
 - **Cross-chain Flow** — chronological feed merging Sepolia events and their proven consequences on Creditcoin.
-- **Policy Simulator** — drag collateral / repayments / income to see the exact on-chain score & limit (works without any wallet or deployment).
-- **Loans** — every loan with the AI underwriter's on-chain decision hash and rationale.
+- **Policy Simulator** — drag collateral / repayments / income to see the exact on-chain score & limit.
+- **Loans** — every loan with the on-chain decision hash, rationale, and a Repay action for your own loans.
 
-Set `web/config.js` (the deploy scripts also write `deployments.json`).
+Set `web/config.js` (the deploy scripts also write `deployments.json`). In local mode a
+`config.local.json` override is written automatically and points the dApp at the two Anvil devnets.
 
 ## Tests
 

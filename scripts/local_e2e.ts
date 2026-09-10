@@ -30,8 +30,8 @@ const SOURCE_PORT = Number(process.env.LOCAL_SOURCE_PORT || 8571);
 const CC_PORT = Number(process.env.LOCAL_CC_PORT || 8572);
 const SOURCE_RPC = `http://127.0.0.1:${SOURCE_PORT}`;
 const CC_RPC = `http://127.0.0.1:${CC_PORT}`;
-const SOURCE_CHAIN_ID = 11155111;
-const CC_CHAIN_ID = 102031;
+const SOURCE_CHAIN_ID = 11155112; // "Local Sepolia" (unique so wallets don't confuse it with real Sepolia)
+const CC_CHAIN_ID = 102032; // "Local Creditcoin" (unique vs CC3 testnet's 102031)
 
 const DEPLOYER_KEY = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
 const BORROWER_KEY = '0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d';
@@ -137,8 +137,9 @@ async function main() {
     const usdToken = await deployOn('TestToken', ccDeployer, ['Mock USD1', 'mUSD1', 6]);
     const asc = await deployOn('CreditPassportASC', ccDeployer, []);
     const policy = await deployOn('CreditPolicy', ccDeployer, []);
+    const usdTokenAddr = await usdToken.getAddress();
     const pool = await deployOn('CreditPool', ccDeployer, [
-      await usdToken.getAddress(),
+      usdTokenAddr,
       await asc.getAddress(),
       await policy.getAddress(),
     ]);
@@ -161,21 +162,35 @@ async function main() {
 
     // ---------- local relayer: events -> passport ----------
     console.log('\n== Local relayer (simulates worker + precompile) ==');
-    const events = [
-      ...(await source.queryFilter('CollateralDeposited', 0, 'latest')),
-      ...(await source.queryFilter('RepaymentRecorded', 0, 'latest')),
-      ...(await source.queryFilter('IncomeReceived', 0, 'latest')),
-    ];
-    for (const e of events as any[]) {
-      if (e.fragment.name === 'CollateralDeposited') {
-        await (await asc.applyLocalEvent(0, e.args[0], e.args[1], false)).wait();
-      } else if (e.fragment.name === 'RepaymentRecorded') {
-        await (await asc.applyLocalEvent(1, e.args[0], e.args[2], e.args[3])).wait();
-      } else if (e.fragment.name === 'IncomeReceived') {
-        await (await asc.applyLocalEvent(2, e.args[0], e.args[1], false)).wait();
+    const relayed = new Set<string>();
+    const relay = async () => {
+      const events = [
+        ...(await source.queryFilter('CollateralDeposited', 0, 'latest')),
+        ...(await source.queryFilter('RepaymentRecorded', 0, 'latest')),
+        ...(await source.queryFilter('IncomeReceived', 0, 'latest')),
+      ] as any[];
+      let applied = 0;
+      for (const e of events) {
+        const key = `${e.transactionHash}:${e.index}:${e.fragment.name}`;
+        if (relayed.has(key)) continue;
+        relayed.add(key);
+        try {
+          if (e.fragment.name === 'CollateralDeposited') {
+            await (await asc.applyLocalEvent(0, e.args[0], e.args[1], false)).wait();
+          } else if (e.fragment.name === 'RepaymentRecorded') {
+            await (await asc.applyLocalEvent(1, e.args[0], e.args[2], e.args[3])).wait();
+          } else if (e.fragment.name === 'IncomeReceived') {
+            await (await asc.applyLocalEvent(2, e.args[0], e.args[1], false)).wait();
+          }
+          applied++;
+        } catch {
+          relayed.delete(key); // retry next tick
+        }
       }
-    }
-    console.log(`  proved ${events.length} events -> passport updated`);
+      return applied;
+    };
+    const appliedNow = await relay();
+    console.log(`  proved ${appliedNow} events -> passport updated`);
 
     // ---------- AI underwriting ----------
     console.log('\n== AI underwriting ==');
@@ -208,15 +223,34 @@ async function main() {
 
     if (process.env.LOCAL_KEEP_ALIVE === '1') {
       const localConfig = {
-        creditcoin: { name: 'Local Creditcoin', rpc: CC_RPC, explorer: '', lookback: 100000, chunk: 10000 },
-        sepolia: { name: 'Local Sepolia', rpc: SOURCE_RPC, explorer: '', lookback: 100000, chunk: 10000 },
-        addresses: { passport: ascAddr, policy: policyAddr, pool: poolAddr, source: sourceAddr },
+        creditcoin: {
+          name: 'Local Creditcoin', rpc: CC_RPC, explorer: '', chainId: CC_CHAIN_ID,
+          nativeCurrency: { name: 'Creditcoin', symbol: 'CTC', decimals: 18 },
+          lookback: 100000, chunk: 10000,
+        },
+        sepolia: {
+          name: 'Local Sepolia', rpc: SOURCE_RPC, explorer: '', chainId: SOURCE_CHAIN_ID,
+          nativeCurrency: { name: 'Sepolia Ether', symbol: 'ETH', decimals: 18 },
+          lookback: 100000, chunk: 10000,
+        },
+        addresses: {
+          passport: ascAddr, policy: policyAddr, pool: poolAddr,
+          usd: usdTokenAddr, source: sourceAddr, venue: venueAddr, collateral: tokenAddr,
+        },
         borrower: borrowerAddr,
         refreshMs: 5000,
       };
       fs.writeFileSync(path.join(ROOT_DIR, 'web', 'config.local.json'), JSON.stringify(localConfig, null, 2));
 
+      // Background relayer: keeps proving new source-chain events while the dashboard is open.
+      const relayTimer = setInterval(() => {
+        relay()
+          .then((n) => { if (n > 0) console.log(`[relayer] proved ${n} new event(s)`); })
+          .catch(() => {});
+      }, 5000);
+
       const shutdown = () => {
+        clearInterval(relayTimer);
         anvilSource.kill('SIGKILL');
         anvilCc.kill('SIGKILL');
         process.exit(0);
@@ -226,7 +260,8 @@ async function main() {
 
       console.log('\nDevnets kept alive (LOCAL_KEEP_ALIVE=1).');
       console.log('  Dashboard: run "npm run serve" and open http://localhost:3000');
-      console.log('  web/config.local.json written with the local addresses.');
+      console.log(`  Networks: Local Creditcoin chainId ${CC_CHAIN_ID}, Local Sepolia chainId ${SOURCE_CHAIN_ID}`);
+      console.log('  web/config.local.json written; background relayer is running.');
       console.log('  Press Ctrl+C to stop the devnets.');
       await new Promise(() => {});
     }

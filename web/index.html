@@ -17,12 +17,14 @@
         </div>
       </div>
       <span class="pill" id="netPill"><span class="dot" id="netDot"></span><span id="netName">Creditcoin CC3 Testnet</span></span>
-      <span class="pill" id="refreshPill"><span class="spin" id="refreshSpin"></span><span id="refreshText">loading…</span></span>
+      <span class="pill refresh-pill" id="refreshPill"><span class="spin" id="refreshSpin"></span><span id="refreshText">loading…</span></span>
+      <button class="btn wallet" id="connectBtn">Connect Wallet</button>
     </div>
   </header>
 
   <nav class="tabs">
     <button class="tab active" data-view="dashboard">Dashboard</button>
+    <button class="tab" data-view="actions">Actions</button>
     <button class="tab" data-view="flow">Cross-chain Flow</button>
     <button class="tab" data-view="policy">Policy Simulator</button>
     <button class="tab" data-view="loans">Loans</button>
@@ -63,7 +65,7 @@
               <div class="val"><b id="ringScore">—</b><span id="ringTier">—</span></div>
             </div>
             <div>
-              <div class="help">Borrower</div>
+              <div class="help">Passport holder</div>
               <div class="mono" id="borrowerAddr">—</div>
               <div class="help" style="margin-top:12px">Passport last updated at block</div>
               <div class="mono" id="profileBlock">—</div>
@@ -102,6 +104,28 @@
         <div class="row"><span class="k">AI underwriter</span><span class="v mono" id="poolUnderwriter">—</span></div>
         <div class="row"><span class="k">Passport (ASC)</span><span class="v mono addr-chip"><span id="ascAddr">—</span><span class="copy" data-copy="asc">copy</span></span></div>
         <div class="row"><span class="k">Pool</span><span class="v mono addr-chip"><span id="poolAddr">—</span><span class="copy" data-copy="pool">copy</span></span></div>
+      </section>
+    </section>
+
+    <!-- ================= ACTIONS ================= -->
+    <section class="view" id="view-actions">
+      <section class="panel">
+        <h2>On-chain actions</h2>
+        <div class="hint">Interact with CreditPass from your wallet. The pool enforces your verified limit on-chain.</div>
+        <div id="actionsBody"></div>
+      </section>
+      <section class="panel" style="margin-top:18px">
+        <h2>How the roles work</h2>
+        <div class="grid cols-2">
+          <div>
+            <b>Borrower</b>
+            <p class="help">Connect on Creditcoin to draw credit within your verified limit. Repay from the Loans tab. Build more history on Sepolia to raise the limit.</p>
+          </div>
+          <div>
+            <b>AI underwriter</b>
+            <p class="help">The agent address set on the pool can open loans for verified borrowers and records a decision hash on-chain.</p>
+          </div>
+        </div>
       </section>
     </section>
 
@@ -170,10 +194,10 @@
     <section class="view" id="view-loans">
       <section class="panel">
         <h2>Loans</h2>
-        <div class="hint">Click a row to see the AI underwriter's recorded decision and rationale.</div>
+        <div class="hint">Click a row for the recorded decision. Repay your own loans directly.</div>
         <table>
           <thead>
-            <tr><th>#</th><th>Borrower</th><th>Principal</th><th>Owed</th><th>Verified score</th><th>Status</th><th>Rationale</th></tr>
+            <tr><th>#</th><th>Borrower</th><th>Principal</th><th>Owed</th><th>Verified score</th><th>Status</th><th>Rationale / action</th></tr>
           </thead>
           <tbody id="loansBody"><tr><td colspan="7" class="empty">No loans yet.</td></tr></tbody>
         </table>
@@ -196,6 +220,8 @@
       <div class="body" id="modalBody"></div>
     </div>
   </div>
+
+  <div id="toasts"></div>
 
   <script type="module" src="./app.js"></script>
 </body>
