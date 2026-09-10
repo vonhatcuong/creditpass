@@ -1,6 +1,7 @@
 import { ethers } from 'https://esm.sh/ethers@6.17.0';
 import { CONFIG } from './config.js';
 import { TIERS, POLICY, usd, usd2, short, assess } from './policy.js';
+import { SAMPLE } from './sample.js';
 
 // ---------------------------------------------------------------------------
 // ABIs
@@ -417,6 +418,25 @@ async function refresh() {
   }
 }
 
+/** Renders a representative preview when no contracts are configured. */
+function renderSample() {
+  state.profile = SAMPLE.profile;
+  state.loans = SAMPLE.loans;
+  state.activity = SAMPLE.activity;
+
+  renderProfile(SAMPLE.profile);
+  $('poolLiquidity').textContent = usd(SAMPLE.pool.liquidity);
+  $('poolOutstanding').textContent = usd(SAMPLE.pool.outstanding);
+  $('poolUtil').textContent = ((SAMPLE.pool.outstanding / SAMPLE.pool.liquidity) * 100).toFixed(1) + '%';
+  $('poolUnderwriter').textContent = short(SAMPLE.underwriter);
+  $('statLoans').textContent = String(SAMPLE.pool.loans);
+  $('ascAddr').textContent = 'demo';
+  $('poolAddr').textContent = 'demo';
+  renderLoans(SAMPLE.loans);
+  renderActivity(SAMPLE.activity);
+  renderFlowCounts(SAMPLE.activity);
+}
+
 async function boot() {
   await applyLocalOverrides();
   $('netName').textContent = CONFIG.creditcoin.name;
@@ -429,11 +449,15 @@ async function boot() {
   $('modal').addEventListener('click', (e) => { if (e.target === $('modal')) $('modal').classList.remove('show'); });
 
   if (!configured()) {
+    renderSample();
     $('configNotice').style.display = 'block';
     $('configNotice').innerHTML =
-      'Dashboard not configured yet. Deploy the contracts, then fill <span class="mono">web/config.js</span> ' +
-      '(or copy addresses from <span class="mono">deployments.json</span>). The Policy Simulator below works without any deployment.';
-    $('refreshText').textContent = 'waiting for config';
+      '<b>Demo preview</b> — this page is showing sample data. Deploy the contracts and set ' +
+      '<span class="mono">web/config.js</span> for live on-chain data. The <b>Policy Simulator</b> ' +
+      'uses the real on-chain formula and works standalone.';
+    $('netDot').classList.remove('off');
+    $('refreshText').textContent = 'demo data';
+    $('netName').textContent = 'Demo preview';
     return;
   }
 
