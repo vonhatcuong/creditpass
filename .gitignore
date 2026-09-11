@@ -7,5 +7,6 @@ cache/
 deployments.json
 web/rationales/
 web/config.local.json
+web/telemetry.json
 web/node_modules/
 web/dist/

@@ -32,4 +32,19 @@ export const SAMPLE = {
     { chain: 'sep', type: 'RepaymentRecorded', amount: 200e6, onTime: true, block: 8850600, tx: h('c7'), address: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8', ts: now - 33 * 60_000 },
     { chain: 'sep', type: 'CollateralDeposited', amount: 5000e6, block: 8850000, tx: h('c8'), address: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8', ts: now - 40 * 60_000 },
   ],
+
+  // Proof pipeline telemetry (the worker writes the real one to web/telemetry.json).
+  telemetry: {
+    updatedAt: new Date(now - 20_000).toISOString(),
+    chainKey: 1,
+    source: '0xE7f1...Source',
+    passport: '0xE7f1...Passport',
+    latestAttestedHeight: 8851240,
+    events: [
+      { id: 'e1', type: 'IncomeReceived', user: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8', amount: '1500000000', sourceTx: h('d1'), sourceBlock: 8850900, status: 'attesting', latestAttestedHeight: 8851240 },
+      { id: 'e2', type: 'RepaymentRecorded', user: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8', amount: '200000000', onTime: true, sourceTx: h('d2'), sourceBlock: 8850600, status: 'attested' },
+      { id: 'e3', type: 'RepaymentRecorded', user: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8', amount: '200000000', onTime: true, sourceTx: h('d3'), sourceBlock: 8850500, status: 'proved', creditcoinTx: h('d4') },
+      { id: 'e4', type: 'CollateralDeposited', user: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8', amount: '5000000000', sourceTx: h('d5'), sourceBlock: 8850000, status: 'proved', creditcoinTx: h('d6') },
+    ],
+  },
 };

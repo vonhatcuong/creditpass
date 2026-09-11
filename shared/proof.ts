@@ -1,10 +1,21 @@
 import { Contract, JsonRpcApiProvider } from 'ethers';
 import { proofProvider, chainInfo } from '@gluwa/usc-sdk';
+import { log, sleep } from './telemetry';
+
+export type ProofPhase = 'mined' | 'attesting' | 'attested' | 'proof-generated';
+
+export interface ProofStatus {
+  phase: ProofPhase;
+  blockNumber?: number;
+  latestAttested?: number;
+}
 
 /**
  * Waits for a source-chain transaction to be attested on Creditcoin, then asks the
  * Proof Builder service for the Merkle inclusion proof + continuity proof. This is the
  * "Generate proofs" step of the Attestcoin readability flow.
+ *
+ * `onStatus` reports each stage so callers can emit structured telemetry.
  */
 export async function generateProofFor(
   txHash: string,
@@ -12,27 +23,41 @@ export async function generateProofFor(
   proofBuilderUrl: string,
   creditcoinRpc: JsonRpcApiProvider,
   sourceChainRpc: JsonRpcApiProvider,
+  onStatus?: (status: ProofStatus) => void,
 ): Promise<proofProvider.ProofResult> {
-  console.log(`Waiting for ${txHash} to be mined on the source chain...`);
+  log('PROOF', 'waiting for source tx to be mined', { tx: txHash.slice(0, 12) });
   const receipt = await sourceChainRpc.waitForTransaction(txHash, 1, 120_000);
   if (!receipt || receipt.blockNumber == null) {
     throw new Error(`Transaction ${txHash} is not yet mined on the source chain`);
   }
   const blockNumber = receipt.blockNumber;
-  console.log(`Transaction ${txHash} found in source block ${blockNumber}`);
+  log('PROOF', 'source tx mined', { tx: txHash.slice(0, 12), block: blockNumber });
+  onStatus?.({ phase: 'mined', blockNumber });
 
   const proofBuilder = new proofProvider.service.ProofBuilder(chainKey, proofBuilderUrl);
   const info = new chainInfo.PrecompileChainInfoProvider(creditcoinRpc);
 
-  const latest = await info.getLatestAttestedHeightAndHash(chainKey);
-  console.log(`Latest attested height for chainKey ${chainKey}: ${latest.height}`);
-  console.log('Waiting for attestation (this takes a few minutes)...');
+  let latest = await info.getLatestAttestedHeightAndHash(chainKey);
+  log('ATTEST', 'waiting for attestation', {
+    chainKey,
+    targetBlock: blockNumber,
+    latestAttested: latest.height,
+  });
 
-  await proofBuilder.waitUntilHeightAttested(chainKey, blockNumber, 15_000, 1_200_000);
-  console.log(`Block ${blockNumber} attested! Generating proof...`);
+  const started = Date.now();
+  while (latest.height < blockNumber) {
+    onStatus?.({ phase: 'attesting', blockNumber, latestAttested: latest.height });
+    if (Date.now() - started > 20 * 60_000) throw new Error('Timed out waiting for attestation');
+    await sleep(15_000);
+    latest = await info.getLatestAttestedHeightAndHash(chainKey);
+  }
+
+  log('ATTEST', 'block attested', { block: blockNumber, latestAttested: latest.height });
+  onStatus?.({ phase: 'attested', blockNumber, latestAttested: latest.height });
 
   const proof = await proofBuilder.getProof(txHash);
-  console.log('Proof generated.');
+  log('PROOF', 'proof generated', { tx: txHash.slice(0, 12), block: blockNumber });
+  onStatus?.({ phase: 'proof-generated', blockNumber, latestAttested: latest.height });
   return proof;
 }
 
@@ -57,10 +82,13 @@ export async function submitProofToASC(
     proofData.continuityProof.roots,
   ];
 
-  if (!gasLimit) {
-    gasLimit = await estimateExecuteGas(contract, params);
-  }
-
+  if (!gasLimit) gasLimit = await estimateExecuteGas(contract, params);
+  log('SUBMIT', 'calling ASC.execute', {
+    action,
+    chainKey: proofData.chainKey,
+    height: proofData.headerNumber,
+    continuityRoots: proofData.continuityProof.roots?.length ?? 0,
+  });
   return contract.execute(...params, { gasLimit });
 }
 
@@ -72,7 +100,6 @@ async function estimateExecuteGas(contract: Contract, params: unknown[]): Promis
     const estimated = await provider!.estimateGas({ to: await contract.getAddress(), data, from });
     return (estimated * 135n) / 100n;
   } catch {
-    // Gas estimation over precompiles can fail; fall back to a proof-size estimate.
     const continuity = (params[7] as string[])?.length ?? 1;
     return BigInt(21000 + continuity * 5000 + 20000);
   }

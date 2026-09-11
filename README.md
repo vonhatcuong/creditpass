@@ -109,6 +109,17 @@ npm run serve
 Set `web/config.js` (the deploy scripts also write `deployments.json`). In local mode a
 `config.local.json` override is written automatically and points the dApp at the two Anvil devnets.
 
+## Telemetry & logs
+
+The worker (and the local relayer) make the proof pipeline observable end-to-end:
+
+- **Structured logs** to stdout: `[time] [SCOPE] message key=value` with scopes
+  `DETECT`, `ATTEST`, `PROOF`, `SUBMIT`, `RESULT`, `ERROR`, `RELAYER`.
+- **`web/telemetry.json`** — every source event with an explicit stage
+  (`emitted → attesting → attested → proved` / `failed`), tx hashes and history.
+- The dashboard renders it live in **Cross-chain Flow → Proof pipeline**, showing each event's
+  Emit → Attest → Prove → Verify progress with Sepolia/Creditcoin explorer links.
+
 ## Tests
 
 ```

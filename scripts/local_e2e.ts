@@ -13,6 +13,7 @@ import {
 } from 'ethers';
 import { loadArtifact } from '../shared/artifacts';
 import { ROOT_DIR } from '../shared/env';
+import { Telemetry, log } from '../shared/telemetry';
 
 /**
  * Local end-to-end run of CreditPass on two Anvil devnets.
@@ -161,9 +162,16 @@ async function main() {
     console.log(`  liquidity seeded   ${fmt(liquidity)}`);
 
     // ---------- local relayer: events -> passport ----------
-    console.log('\n== Local relayer (simulates worker + precompile) ==');
+    const telemetry = new Telemetry(path.join(ROOT_DIR, 'web', 'telemetry.json'), {
+      chainKey: 1,
+      source: sourceAddr,
+      passport: ascAddr,
+    });
+    log('RELAYER', 'started (local mode: simulates worker + precompile)');
     const relayed = new Set<string>();
     const relay = async () => {
+      const head = await sourceProvider.getBlockNumber();
+      telemetry.setLatestAttestedHeight(head);
       const events = [
         ...(await source.queryFilter('CollateralDeposited', 0, 'latest')),
         ...(await source.queryFilter('RepaymentRecorded', 0, 'latest')),
@@ -171,26 +179,44 @@ async function main() {
       ] as any[];
       let applied = 0;
       for (const e of events) {
-        const key = `${e.transactionHash}:${e.index}:${e.fragment.name}`;
-        if (relayed.has(key)) continue;
-        relayed.add(key);
+        const id = `${e.transactionHash}:${e.index}:${e.fragment.name}`;
+        if (relayed.has(id)) continue;
+        relayed.add(id);
+        const name = e.fragment.name;
+        let base: any;
+        let action: number;
+        if (name === 'CollateralDeposited') {
+          action = 0;
+          base = { type: name, user: e.args[0], amount: e.args[1].toString() };
+        } else if (name === 'RepaymentRecorded') {
+          action = 1;
+          base = { type: name, user: e.args[0], amount: e.args[2].toString(), onTime: e.args[3] };
+        } else {
+          action = 2;
+          base = { type: name, user: e.args[0], amount: e.args[1].toString() };
+        }
+        telemetry.emitted({ id, ...base, sourceTx: e.transactionHash, sourceBlock: e.blockNumber });
         try {
-          if (e.fragment.name === 'CollateralDeposited') {
-            await (await asc.applyLocalEvent(0, e.args[0], e.args[1], false)).wait();
-          } else if (e.fragment.name === 'RepaymentRecorded') {
-            await (await asc.applyLocalEvent(1, e.args[0], e.args[2], e.args[3])).wait();
-          } else if (e.fragment.name === 'IncomeReceived') {
-            await (await asc.applyLocalEvent(2, e.args[0], e.args[1], false)).wait();
-          }
+          const tx =
+            action === 0
+              ? asc.applyLocalEvent(0, e.args[0], e.args[1], false)
+              : action === 1
+                ? asc.applyLocalEvent(1, e.args[0], e.args[2], e.args[3])
+                : asc.applyLocalEvent(2, e.args[0], e.args[1], false);
+          const receipt = await (await tx).wait();
+          telemetry.attested(id, e.blockNumber);
+          telemetry.proved(id, receipt.hash);
+          log('PROVE', name, { user: String(base.user).slice(0, 10), amount: base.amount, tx: receipt.hash.slice(0, 12) });
           applied++;
-        } catch {
-          relayed.delete(key); // retry next tick
+        } catch (err: any) {
+          relayed.delete(id);
+          telemetry.failed(id, err?.shortMessage ?? err?.message ?? String(err));
         }
       }
       return applied;
     };
     const appliedNow = await relay();
-    console.log(`  proved ${appliedNow} events -> passport updated`);
+    log('RELAYER', 'initial proof complete', { events: appliedNow });
 
     // ---------- AI underwriting ----------
     console.log('\n== AI underwriting ==');
@@ -245,7 +271,7 @@ async function main() {
       // Background relayer: keeps proving new source-chain events while the dashboard is open.
       const relayTimer = setInterval(() => {
         relay()
-          .then((n) => { if (n > 0) console.log(`[relayer] proved ${n} new event(s)`); })
+          .then((n) => { if (n > 0) log('RELAYER', 'proved new events', { count: n }); })
           .catch(() => {});
       }, 5000);
 

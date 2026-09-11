@@ -1,7 +1,9 @@
+import path from 'node:path';
 import { Contract, EventLog, JsonRpcProvider, Wallet } from 'ethers';
-import { loadEnv, requireEnv } from '../shared/env';
+import { loadEnv, requireEnv, ROOT_DIR } from '../shared/env';
 import { attach } from '../shared/artifacts';
 import { generateProofFor, submitProofToASC } from '../shared/proof';
+import { Telemetry, log } from '../shared/telemetry';
 
 /**
  * CreditPass off-chain readability worker.
@@ -12,11 +14,9 @@ import { generateProofFor, submitProofToASC } from '../shared/proof';
  *   3. submits the proof to CreditPassportASC.execute(action, ...), where the
  *      Block Prover precompile verifies it synchronously and updates the passport.
  *
- * This is what makes the borrower's history verifiable on Creditcoin without any
- * trusted oracle operator and without deploying anything else on the source chain.
+ * Progress is emitted as structured logs and to web/telemetry.json (for the dashboard).
  */
 
-// Action discriminators must match `enum Action` in CreditPassportASC.sol
 const ACTION: Record<string, number> = {
   CollateralDeposited: 0,
   RepaymentRecorded: 1,
@@ -24,11 +24,21 @@ const ACTION: Record<string, number> = {
 };
 
 const POLL_INTERVAL_MS = 5_000;
-const MAX_LOG_RANGE = 45; // hosted RPCs often cap eth_getLogs
+const MAX_LOG_RANGE = 45;
 
 let shuttingDown = false;
 process.on('SIGINT', () => (shuttingDown = true));
 process.on('SIGTERM', () => (shuttingDown = true));
+
+function describeEvent(eventName: string, args: any): { base: any; action: number } {
+  if (eventName === 'CollateralDeposited') {
+    return { action: 0, base: { type: eventName, user: args[0], amount: args[1].toString() } };
+  }
+  if (eventName === 'RepaymentRecorded') {
+    return { action: 1, base: { type: eventName, user: args[0], amount: args[2].toString(), onTime: args[3] } };
+  }
+  return { action: 2, base: { type: eventName, user: args[0], amount: args[1].toString() } };
+}
 
 async function main() {
   loadEnv();
@@ -40,14 +50,19 @@ async function main() {
 
   const sourceProvider = new JsonRpcProvider(sourceRpcUrl);
   const ccProvider = new JsonRpcProvider(ccRpcUrl);
-
   const operator = new Wallet(requireEnv('DEPLOYER_PRIVATE_KEY'), ccProvider);
 
-  const source = attach('CreditHistorySource', requireEnv('CREDIT_HISTORY_SOURCE_ADDRESS'), sourceProvider);
-  const asc = attach('CreditPassportASC', requireEnv('CREDIT_PASSPORT_ASC_ADDRESS'), operator);
+  const sourceAddress = requireEnv('CREDIT_HISTORY_SOURCE_ADDRESS');
+  const passportAddress = requireEnv('CREDIT_PASSPORT_ASC_ADDRESS');
+  const source = attach('CreditHistorySource', sourceAddress, sourceProvider);
+  const asc = attach('CreditPassportASC', passportAddress, operator);
 
-  // Start from a configurable block so previously-emitted history is also proved.
-  // Defaults to a ~6.5h lookback on Sepolia so a demo run is picked up automatically.
+  const telemetry = new Telemetry(path.join(ROOT_DIR, 'web', 'telemetry.json'), {
+    chainKey,
+    source: sourceAddress,
+    passport: passportAddress,
+  });
+
   let fromBlock: number;
   if (process.env.SOURCE_START_BLOCK) {
     fromBlock = Number(process.env.SOURCE_START_BLOCK);
@@ -57,38 +72,22 @@ async function main() {
   }
   const processed = new Set<string>();
 
-  console.log('CreditPass worker started.');
-  console.log(`  chainKey:   ${chainKey}`);
-  console.log(`  source:     ${await source.getAddress()}`);
-  console.log(`  passport:   ${await asc.getAddress()}`);
-  console.log(`  from block: ${fromBlock}`);
+  log('WORKER', 'started', { chainKey, source: sourceAddress, passport: passportAddress, fromBlock });
 
   while (!shuttingDown) {
     try {
       const current = await sourceProvider.getBlockNumber();
-      // Scan every event type over the SAME block range before advancing.
       for (const eventName of Object.keys(ACTION)) {
-        await processEvent(
-          eventName,
-          source,
-          asc,
-          sourceProvider,
-          ccProvider,
-          proofBuilderUrl,
-          chainKey,
-          fromBlock,
-          current,
-          processed,
-        );
+        await processEvent(eventName, source, asc, sourceProvider, ccProvider, proofBuilderUrl, chainKey, fromBlock, current, processed, telemetry);
       }
       fromBlock = current + 1;
     } catch (error: any) {
-      console.error('Polling error:', error?.shortMessage ?? error?.message ?? error);
+      log('WORKER', 'polling error', { error: error?.shortMessage ?? error?.message });
     }
-    await sleep(POLL_INTERVAL_MS);
+    await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
   }
 
-  console.log('Worker stopped.');
+  log('WORKER', 'stopped');
   process.exit(0);
 }
 
@@ -103,9 +102,9 @@ async function processEvent(
   fromBlock: number,
   toBlock: number,
   processed: Set<string>,
+  telemetry: Telemetry,
 ): Promise<void> {
   if (fromBlock > toBlock) return;
-
   let start = fromBlock;
   while (start <= toBlock) {
     const end = Math.min(start + MAX_LOG_RANGE - 1, toBlock);
@@ -113,51 +112,57 @@ async function processEvent(
     try {
       events = (await source.queryFilter(eventName, start, end)) as EventLog[];
     } catch (error: any) {
-      console.warn(`queryFilter ${eventName} [${start}-${end}] failed: ${error?.shortMessage ?? error}`);
+      log('WORKER', 'queryFilter failed', { event: eventName, from: start, to: end, error: error?.shortMessage ?? error });
       start = end + 1;
       continue;
     }
 
     for (const event of events) {
-      const key = `${event.transactionHash}:${event.index}:${eventName}`;
-      if (processed.has(key)) continue;
-      processed.add(key);
-      await prove(eventName, event.transactionHash, asc, sourceProvider, ccProvider, proofBuilderUrl, chainKey);
+      const id = `${event.transactionHash}:${event.index}:${eventName}`;
+      if (processed.has(id)) continue;
+      processed.add(id);
+
+      const { base, action } = describeEvent(eventName, event.args);
+      telemetry.emitted({ id, ...base, sourceTx: event.transactionHash, sourceBlock: event.blockNumber });
+      log('DETECT', eventName, { user: String(base.user).slice(0, 10), amount: base.amount, block: event.blockNumber, tx: event.transactionHash.slice(0, 12) });
+
+      await prove(id, event.transactionHash, action, asc, sourceProvider, ccProvider, proofBuilderUrl, chainKey, telemetry);
     }
     start = end + 1;
   }
 }
 
 async function prove(
-  eventName: string,
+  id: string,
   txHash: string,
+  action: number,
   asc: Contract,
   sourceProvider: JsonRpcProvider,
   ccProvider: JsonRpcProvider,
   proofBuilderUrl: string,
   chainKey: number,
+  telemetry: Telemetry,
 ) {
-  console.log(`\n[${eventName}] ${txHash}`);
   try {
-    const proof = await generateProofFor(txHash, chainKey, proofBuilderUrl, ccProvider, sourceProvider);
-    if (!proof.success || !proof.data) {
-      console.error(`  proof failed: ${proof.error}`);
-      return;
-    }
+    const proof = await generateProofFor(txHash, chainKey, proofBuilderUrl, ccProvider, sourceProvider, (s) => {
+      if (s.phase === 'attesting') telemetry.attesting(id, s.latestAttested ?? 0, s.blockNumber ?? 0);
+      if (s.phase === 'attested') telemetry.attested(id, s.blockNumber ?? 0);
+    });
 
-    const response = await submitProofToASC(asc, ACTION[eventName], proof.data);
+    if (!proof.success || !proof.data) throw new Error(proof.error || 'proof generation failed');
+
+    const response = await submitProofToASC(asc, action, proof.data);
     const receipt = await response.wait();
-    console.log(`  passport updated on Creditcoin: ${receipt.hash}`);
+    telemetry.proved(id, receipt.hash);
+    log('RESULT', 'passport updated on Creditcoin', { tx: receipt.hash, action });
   } catch (error: any) {
-    console.error(`  ${eventName} failed: ${error?.shortMessage ?? error?.message ?? error}`);
+    const message = error?.shortMessage ?? error?.message ?? String(error);
+    telemetry.failed(id, message);
+    log('ERROR', 'prove failed', { tx: txHash.slice(0, 12), error: message });
   }
 }
 
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 main().catch((error) => {
-  console.error(error);
+  log('FATAL', error?.message ?? String(error));
   process.exit(1);
 });
