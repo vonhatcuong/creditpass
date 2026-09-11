@@ -25,6 +25,7 @@ const state = {
   profile: null,
   loans: [],
   activity: [],
+  telemetry: null,
   pool: null,
   configured: false,
   demo: false,
@@ -322,6 +323,74 @@ function renderFlowCounts(items) {
   $('cIncome').textContent = `${count('IncomeReceived')} events`;
   $('cPassport').textContent = `${count('PassportUpdated')} updates`;
   $('cLoans').textContent = `${count('LoanOpened')} loans`;
+}
+
+// ---------------------------------------------------------------------------
+// Proof pipeline telemetry
+// ---------------------------------------------------------------------------
+const STAGES = ['Emit', 'Attest', 'Prove', 'Verify'];
+const STAGE_INDEX = { emitted: 0, attesting: 1, attested: 2, proved: 3, failed: 1 };
+
+async function loadTelemetry() {
+  try {
+    const res = await fetch('./telemetry.json', { cache: 'no-store' });
+    if (res.ok) {
+      state.telemetry = await res.json();
+      renderTelemetry(state.telemetry);
+      return;
+    }
+  } catch { /* ignore */ }
+  renderTelemetry(state.demo ? SAMPLE.telemetry : null);
+}
+
+function renderTelemetry(data) {
+  const host = $('pipeline');
+  if (!host) return;
+  if (!data || !data.events || !data.events.length) {
+    host.innerHTML = '<div class="empty">No proof activity yet. Emit events on Sepolia (Actions tab) to watch the pipeline.</div>';
+    return;
+  }
+  const events = [...data.events].reverse().slice(0, 12);
+  host.innerHTML =
+    `<div class="pipe-hdr">
+       <span>chainKey <b>${data.chainKey}</b> · latest attested height <b class="accent-2">${data.latestAttestedHeight || '—'}</b></span>
+       <span class="help">updated ${new Date(data.updatedAt).toLocaleTimeString()}</span>
+     </div>` +
+    events.map(pipeItem).join('');
+}
+
+function pipeItem(e) {
+  const idx = STAGE_INDEX[e.status] ?? 0;
+  const steps = STAGES.map((label, i) => {
+    let cls = '';
+    if (e.status === 'proved') cls = 'done';
+    else if (e.status === 'failed') cls = i < idx ? 'done' : i === idx ? 'error' : '';
+    else if (i < idx) cls = 'done';
+    else if (i === idx) cls = 'active';
+    return `<span class="pstep ${cls}">${label}</span>`;
+  }).join('<span class="parrow">›</span>');
+
+  const srcLink = CONFIG.sepolia.explorer
+    ? `<a href="${CONFIG.sepolia.explorer}/tx/${e.sourceTx}" target="_blank" rel="noopener" class="mono">${e.sourceTx.slice(0, 10)}…</a>`
+    : `<span class="mono">${e.sourceTx.slice(0, 10)}…</span>`;
+  const ccLink = e.creditcoinTx
+    ? CONFIG.creditcoin.explorer
+      ? `<a href="${CONFIG.creditcoin.explorer}/tx/${e.creditcoinTx}" target="_blank" rel="noopener" class="mono">${e.creditcoinTx.slice(0, 10)}…</a>`
+      : `<span class="mono">${e.creditcoinTx.slice(0, 10)}…</span>`
+    : '<span class="muted">—</span>';
+
+  return `
+    <div class="pipe-item">
+      <div class="pipe-head">
+        <span class="pipe-type">${e.type.replace(/([A-Z])/g, ' $1').trim()}</span>
+        <span class="pipe-amt">${e.amount ? usd(e.amount) : ''}</span>
+        <span class="mono pipe-user">${short(e.user)}</span>
+        <span class="status-chip ${e.status}">${e.status}</span>
+      </div>
+      <div class="pipe-steps">${steps}</div>
+      <div class="pipe-meta">Sepolia ${srcLink} → Creditcoin ${ccLink}</div>
+      ${e.error ? `<div class="pipe-err">${escapeHtml(e.error)}</div>` : ''}
+    </div>`;
 }
 
 // ---------------------------------------------------------------------------
@@ -634,6 +703,7 @@ function renderSample() {
   renderLoans(SAMPLE.loans);
   renderActivity(SAMPLE.activity);
   renderFlowCounts(SAMPLE.activity);
+  renderTelemetry(SAMPLE.telemetry);
 }
 
 // ---------------------------------------------------------------------------
@@ -667,7 +737,7 @@ async function refresh() {
   $('refreshSpin').style.display = 'inline-block';
   $('refreshText').textContent = 'refreshing…';
   try {
-    await Promise.all([loadProfile(), loadPool(), loadLoans(), loadActivity()]);
+    await Promise.all([loadProfile(), loadPool(), loadLoans(), loadActivity(), loadTelemetry()]);
     renderActions();
     $('refreshText').textContent = 'live · ' + new Date().toLocaleTimeString();
   } catch (error) {

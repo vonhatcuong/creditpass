@@ -262,3 +262,25 @@ hr.soft { border: none; border-top: 1px dashed var(--line-soft); margin: 18px 0;
 .toast.error { border-left-color: var(--danger); }
 .toast.pending { border-left-color: var(--accent-2); }
 .toast.info { border-left-color: var(--accent-3); }
+
+/* ---------- proof pipeline ---------- */
+.pipe-hdr { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 0 2px 12px; font-size: 13px; border-bottom: 1px solid var(--line-soft); margin-bottom: 6px; flex-wrap: wrap; }
+.pipe-item { padding: 13px 4px; border-bottom: 1px solid var(--line-soft); }
+.pipe-item:last-child { border-bottom: none; }
+.pipe-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.pipe-type { font-weight: 600; font-size: 13px; }
+.pipe-amt { font-variant-numeric: tabular-nums; font-weight: 650; color: var(--accent); }
+.pipe-user { color: var(--muted); font-size: 12px; }
+.pipe-steps { display: flex; align-items: center; gap: 6px; margin: 10px 0 6px; flex-wrap: wrap; }
+.pstep { font-size: 11px; letter-spacing: 0.04em; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+.pstep.done { color: var(--accent); border-color: rgba(74, 222, 128, 0.4); background: rgba(74, 222, 128, 0.07); }
+.pstep.active { color: var(--accent-2); border-color: rgba(56, 189, 248, 0.5); background: rgba(56, 189, 248, 0.08); animation: pulse 1.4s ease-in-out infinite; }
+.pstep.error { color: var(--danger); border-color: rgba(248, 113, 113, 0.5); background: rgba(248, 113, 113, 0.08); }
+.parrow { color: var(--line); }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+.pipe-meta { color: var(--muted); font-size: 12px; }
+.pipe-err { color: var(--danger); font-size: 12px; margin-top: 6px; }
+.status-chip { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); margin-left: auto; }
+.status-chip.proved { color: var(--accent); border-color: rgba(74, 222, 128, 0.4); }
+.status-chip.attesting, .status-chip.attested { color: var(--accent-2); border-color: rgba(56, 189, 248, 0.4); }
+.status-chip.failed { color: var(--danger); border-color: rgba(248, 113, 113, 0.4); }
