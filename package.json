@@ -16,7 +16,11 @@
     "agent:underwrite": "tsx agent/underwriter.ts",
     "inspect": "tsx scripts/inspect.ts",
     "local:e2e": "tsx scripts/local_e2e.ts",
-    "serve": "npx --yes serve web"
+    "serve": "npx --yes serve web",
+    "serve:legacy": "npx --yes serve web",
+    "dev:frontend": "npm run dev --prefix frontend",
+    "build:frontend": "npm run build --prefix frontend",
+    "test:frontend": "npm run test --prefix frontend"
   },
   "dependencies": {
     "@gluwa/asc-contracts": "0.2.1",

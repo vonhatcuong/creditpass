@@ -1,0 +1,39 @@
+{
+  "creditcoin": {
+    "name": "Local Creditcoin",
+    "rpc": "http://127.0.0.1:8572",
+    "explorer": "",
+    "chainId": 102032,
+    "nativeCurrency": {
+      "name": "Creditcoin",
+      "symbol": "CTC",
+      "decimals": 18
+    },
+    "lookback": 100000,
+    "chunk": 10000
+  },
+  "sepolia": {
+    "name": "Local Sepolia",
+    "rpc": "http://127.0.0.1:8571",
+    "explorer": "",
+    "chainId": 11155112,
+    "nativeCurrency": {
+      "name": "Sepolia Ether",
+      "symbol": "ETH",
+      "decimals": 18
+    },
+    "lookback": 100000,
+    "chunk": 10000
+  },
+  "addresses": {
+    "passport": "0xf5059a5D33d5853360D16C683c16e67980206f36",
+    "policy": "0x95401dc811bb5740090279Ba06cfA8fcF6113778",
+    "pool": "0x998abeb3E57409262aE5b751f60747921B33613E",
+    "usd": "0x851356ae760d987E095750cCeb3bC6014560891C",
+    "source": "0x9A9f2CCfdE556A7E9Ff0848998Aa4a0CFD8863AE",
+    "venue": "0x68B1D87F95878fE05B998F19b66F4baba5De1aed",
+    "collateral": "0x959922bE3CAee4b8Cd9a407cc3ac1C251C2007B1"
+  },
+  "borrower": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+  "refreshMs": 5000
+}

@@ -1,0 +1,39 @@
+@import "tailwindcss";
+
+/* Mobbin mirror tokens — gallery-white monochrome, one blue accent. */
+:root {
+  --canvas: #ffffff;
+  --canvas-soft: #f3f3f3;
+  --field: #f0f0f0;
+  --hairline-soft: #f0f0f0;
+  --hairline: #e0e0e0;
+  --ink: #141414;
+  --ink-soft: #262626;
+  --muted: #707070;
+  --faint: #adadad;
+  --accent: #0066ff;
+  --on-primary: #ffffff;
+  --rounded-sm: 16px;
+  --rounded-md: 24px;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: Inter, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  font-weight: 450;
+}
+
+h1, h2, h3, h4 {
+  font-weight: 650;
+  letter-spacing: 0;
+  line-height: 1.13;
+}
+
+::placeholder {
+  color: var(--faint);
+}

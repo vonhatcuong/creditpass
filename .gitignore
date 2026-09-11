@@ -10,3 +10,5 @@ web/config.local.json
 web/telemetry.json
 web/node_modules/
 web/dist/
+frontend/node_modules/
+frontend/dist/
