@@ -64,7 +64,7 @@ worker/                    off-chain readability worker (Attestcoin proof submis
 agent/                     AI underwriting agent
 web/                       static dashboard (no build step)
 test/                      Foundry tests (policy, source chain, pool, ASC)
-docs/                      integration summary, deck outline, demo script
+docs/                      idea overview, integration summary, deck outline, demo script
 ```
 
 ## Quickstart
